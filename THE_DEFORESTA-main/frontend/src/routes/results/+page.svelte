@@ -9,6 +9,12 @@
   let skippedYears = [];
   let loading = false;
   let imageErrors = new Set();
+  
+  // Chat functionality
+  let chatMessages = [];
+  let currentMessage = '';
+  let chatLoading = false;
+  let isChatOpen = false;
 
   $: {
     // Parse URL parameters
@@ -44,10 +50,10 @@
   }
 
   function downloadAll() {
-    composites.forEach(({ year, filename }) => { console.log(tiffFilename);
+    composites.forEach(({ year, filename }) => {
       const tiffFilename = filename.replace('.png', '.tiff');
       const link = document.createElement('a');
-      link.href = `http://localhost:8000/static/${tiffFilename}`;
+      link.href = `http://localhost:8000/output/${tiffFilename}`;
       link.download = `satellite_${searchLocation}_${year}.tiff`;
       link.click();
     });
@@ -55,6 +61,82 @@
 
   // Check if we have any images to display
   $: hasImages = composites.length > 0;
+
+  // Chat functions
+  async function sendMessage() {
+    if (!currentMessage.trim() || chatLoading) return;
+
+    const userMessage = currentMessage.trim();
+    currentMessage = '';
+    
+    // Add user message to chat
+    chatMessages = [...chatMessages, {
+      type: 'user',
+      content: userMessage,
+      timestamp: new Date()
+    }];
+
+    chatLoading = true;
+
+    try {
+      // Prepare context about the satellite images
+      const imageContext = {
+        location: searchLocation,
+        years: composites.map(c => c.year),
+        optimalWindow: optimalWindow,
+        skippedYears: skippedYears,
+        totalImages: composites.length
+      };
+
+      const response = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          context: imageContext
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        chatMessages = [...chatMessages, {
+          type: 'bot',
+          content: data.response || 'Sorry, I could not process your request.',
+          timestamp: new Date()
+        }];
+      } else {
+        throw new Error(data.error || 'Chat service error');
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      chatMessages = [...chatMessages, {
+        type: 'bot',
+        content: 'Sorry, I encountered an error while processing your message. Please try again.',
+        timestamp: new Date()
+      }];
+    } finally {
+      chatLoading = false;
+    }
+  }
+
+  function toggleChat() {
+    isChatOpen = !isChatOpen;
+    if (isChatOpen && chatMessages.length === 0) {
+      // Add welcome message
+      chatMessages = [{
+        type: 'bot',
+        content: `Hello! I'm here to help you analyze the satellite images for ${searchLocation}. You can ask me about changes over time, patterns, or any observations about these images.`,
+        timestamp: new Date()
+      }];
+    }
+  }
+
+  function clearChat() {
+    chatMessages = [];
+  }
 </script>
 
 <svelte:head>
@@ -89,6 +171,13 @@
           style="padding: 0.5rem 1rem; background: #059669; color: white; border: none; border-radius: 5px; cursor: pointer;"
         >
           📥 Download All TIFF Files
+        </button>
+
+        <button 
+          on:click={toggleChat}
+          style="padding: 0.5rem 1rem; background: {isChatOpen ? '#dc2626' : '#3b82f6'}; color: white; border: none; border-radius: 5px; cursor: pointer;"
+        >
+          {isChatOpen ? '❌ Close Chat' : '💬 Chat with AI'}
         </button>
       {/if}
     </div>
@@ -167,6 +256,91 @@
         </p>
       </div>
     {/if}
+  {/if}
+
+  <!-- Chatbot Interface -->
+  {#if isChatOpen && hasImages}
+    <div style="position: fixed; bottom: 2rem; right: 2rem; width: 400px; max-width: 90vw; background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 1000; max-height: 600px; display: flex; flex-direction: column;">
+      
+      <!-- Chat Header -->
+      <div style="padding: 1rem; border-bottom: 1px solid #e5e7eb; background: #3b82f6; color: white; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 1rem;">🤖 Satellite Image Assistant</h3>
+        <div>
+          <button 
+            on:click={clearChat}
+            style="background: none; border: none; color: white; cursor: pointer; padding: 0.25rem; margin-right: 0.5rem; opacity: 0.8;"
+            title="Clear chat"
+          >
+            🗑️
+          </button>
+          <button 
+            on:click={toggleChat}
+            style="background: none; border: none; color: white; cursor: pointer; padding: 0.25rem; opacity: 0.8;"
+            title="Close chat"
+          >
+            ❌
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat Messages -->
+      <div style="flex: 1; padding: 1rem; overflow-y: auto; max-height: 400px; min-height: 200px;">
+        {#each chatMessages as message}
+          <div style="margin-bottom: 1rem; display: flex; {message.type === 'user' ? 'justify-content: flex-end' : 'justify-content: flex-start'};">
+            <div style="max-width: 80%; padding: 0.75rem; border-radius: 8px; {message.type === 'user' ? 'background: #3b82f6; color: white;' : 'background: #f3f4f6; color: #1f2937;'}">
+              <div style="font-size: 0.875rem; line-height: 1.4;">
+                {message.content}
+              </div>
+              <div style="font-size: 0.75rem; opacity: 0.7; margin-top: 0.25rem;">
+                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+        {/each}
+
+        {#if chatLoading}
+          <div style="display: flex; justify-content: flex-start; margin-bottom: 1rem;">
+            <div style="background: #f3f4f6; padding: 0.75rem; border-radius: 8px;">
+              <div style="color: #6b7280; font-size: 0.875rem;">
+                🤔 Analyzing images...
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Chat Input -->
+      <div style="padding: 1rem; border-top: 1px solid #e5e7eb;">
+        <form on:submit|preventDefault={sendMessage} style="display: flex; gap: 0.5rem;">
+          <input 
+            bind:value={currentMessage}
+            placeholder="Ask about the satellite images..."
+            disabled={chatLoading}
+            style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;"
+          />
+          <button 
+            type="submit" 
+            disabled={!currentMessage.trim() || chatLoading}
+            style="padding: 0.5rem 1rem; background: {currentMessage.trim() && !chatLoading ? '#3b82f6' : '#9ca3af'}; color: white; border: none; border-radius: 6px; cursor: {currentMessage.trim() && !chatLoading ? 'pointer' : 'not-allowed'}; font-size: 0.875rem;"
+          >
+            {chatLoading ? '⏳' : '➤'}
+          </button>
+        </form>
+        
+        <!-- Quick Questions -->
+        <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem;">
+          {#each ['Show changes over time', 'Analyze vegetation', 'Detect urban growth', 'Compare years'] as suggestion}
+            <button 
+              on:click={() => { currentMessage = suggestion; sendMessage(); }}
+              disabled={chatLoading}
+              style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; color: #6b7280;"
+            >
+              {suggestion}
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
   {/if}
 
 </main>
