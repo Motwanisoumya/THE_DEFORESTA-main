@@ -1,7 +1,10 @@
 // Results Page (results/+page.svelte)
 <script>
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
+//   import { analyzeSatelliteImages } from '../lib/satellite-analyzer.js';
+// adjust path as needed, for example: '../../lib/satellite-analyzer.js'
+
+// Adjust the path as needed
 
   let composites = [];
   let searchLocation = '';
@@ -9,6 +12,7 @@
   let skippedYears = [];
   let loading = false;
   let imageErrors = new Set();
+  let image_paths = [];
   
   // Chat functionality
   let chatMessages = [];
@@ -73,8 +77,14 @@
     chatMessages = [...chatMessages, {
       type: 'user',
       content: userMessage,
+
       timestamp: new Date()
+
     }];
+    console.log(userMessage);
+
+
+   
 
     chatLoading = true;
 
@@ -88,6 +98,13 @@
         totalImages: composites.length
       };
 
+      for(const img of composites) {
+        console.log("Image:", img.filename);
+        image_paths.push(img.filename);
+      }
+
+      print("Sending chat request with context:", );
+
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: {
@@ -95,16 +112,21 @@
         },
         body: JSON.stringify({
           message: userMessage,
+          images: image_paths,
           context: imageContext
         })
       });
 
+
       const data = await response.json();
+
+
       
       if (response.ok) {
+        console.log("Chat response:", data);
         chatMessages = [...chatMessages, {
           type: 'bot',
-          content: data.response || 'Sorry, I could not process your request.',
+          content: data.message || 'Sorry, I could not process your request.',
           timestamp: new Date()
         }];
       } else {
@@ -122,7 +144,7 @@
     }
   }
 
-  function toggleChat() {
+  function toggleChat(e) { console.log(e);
     isChatOpen = !isChatOpen;
     if (isChatOpen && chatMessages.length === 0) {
       // Add welcome message
@@ -130,7 +152,7 @@
         type: 'bot',
         content: `Hello! I'm here to help you analyze the satellite images for ${searchLocation}. You can ask me about changes over time, patterns, or any observations about these images.`,
         timestamp: new Date()
-      }];
+      }];   
     }
   }
 
