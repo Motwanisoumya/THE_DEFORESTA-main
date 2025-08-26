@@ -79,7 +79,7 @@ onMount(() => {
     <img src = "hill4.png" id = "hill4" bind:this={hill4}>
     <img src = "hill5.png" id = "hill5" bind:this={hill5}>
     <img src = "tree.png" id = "tree">
-    <p class = "madimi text-green-900 dark:text-white" id = "text" bind:this={text}>Vanishing Greens</p>
+    <p class = "madimi text-green-900 dark:text-white" id = "text" bind:this={text}>Deforesta</p>
     <img src = "plant.png" id = "plant">
 </section>
 <section class = "sec bg-amber-100 dark:bg-gray-700" >
@@ -95,7 +95,7 @@ onMount(() => {
       </div>
       <Solutions />
       <footer  class = "dark:text-white madimi text-xl ml-10 mr-10 w-full text-center">
-        <p>Made By Code Monks</p>
+        <p>Made By Rasmalai coders</p>
       </footer>
 </section>
 
